@@ -16,3 +16,4 @@ chirp_status
 chirp_partition_stream
 confuga_adm
 libchirp_client.so
+chirp_cvmfs_cache

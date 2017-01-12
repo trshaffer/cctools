@@ -828,6 +828,11 @@ then
 		exit 1
 	fi
 
+	if library_search cvmfs_cache ${cvmfs_path}
+	then
+		cvmfs_cache_ldflags="${library_search_result}"
+	fi
+
 	cvmfs_version=$(sed -n 's/^#define LIBCVMFS_VERSION \+\([0-9]\+\)/\1/p' ${cvmfs_path}/include/libcvmfs.h)
 	if [ $cvmfs_version -gt 1 ]
 	then
@@ -1542,6 +1547,7 @@ CCTOOLS_MYSQL_CCFLAGS=${mysql_ccflags}
 CCTOOLS_XROOTD_LDFLAGS=${xrootd_ldflags}
 CCTOOLS_XROOTD_CCFLAGS=${xrootd_ccflags}
 
+CCTOOLS_CVMFS_CACHE_LDFLAGS=${cvmfs_cache_ldflags}
 CCTOOLS_CVMFS_LDFLAGS=${cvmfs_ldflags}
 CCTOOLS_CVMFS_CCFLAGS=${cvmfs_ccflags}
 

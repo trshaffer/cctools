@@ -299,11 +299,6 @@ static void cvmfs_dirent_to_stat(struct cvmfs_dirent *d, struct pfs_stat *s)
 	s->st_ctime = d->mtime;
 }
 
-static void cvmfs_parrot_logger(const char *msg)
-{
-	debug(D_CVMFS, "%s", msg);
-}
-
 static bool write_key(char const *key_text,char const *key_basename,std::string &full_key_fname)
 {
 	// Write keys per instance, avoiding race condition in which two parrot

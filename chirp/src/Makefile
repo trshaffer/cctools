@@ -25,6 +25,10 @@ SOURCES_LIBRARY = chirp_global.c chirp_multi.c chirp_recursive.c chirp_reli.c ch
 SOURCES_SERVER = sqlite3.c chirp_stats.c chirp_thirdput.c chirp_alloc.c chirp_audit.c chirp_acl.c chirp_group.c chirp_filesystem.c chirp_fs_hdfs.c chirp_fs_local.c chirp_fs_local_scheduler.c chirp_fs_chirp.c chirp_fs_confuga.c chirp_job.c chirp_sqlite.c
 TARGETS = $(PROGRAMS) $(LIBRARIES) bindings
 
+ifneq ($(CCTOOLS_CVMFS_CACHE_LDFLAGS),)
+PROGRAMS_CHIRP += chirp_cvmfs_cache
+endif
+
 all: $(TARGETS)
 
 chirp: chirp_tool.o
@@ -49,6 +53,12 @@ chirp_server: $(OBJECTS_SERVER) libconfuga.a
 $(PROGRAMS_CONFUGA): libconfuga.a libchirp.a $(EXTERNAL_DEPENDENCIES)
 $(PROGRAMS_CHIRP): libchirp.a $(EXTERNAL_DEPENDENCIES)
 $(CCTOOLS_SWIG_BINDINGS): libchirp.a $(EXTERNAL_DEPENDENCIES)
+
+chirp_cvmfs_cache.o: chirp_cvmfs_cache.c
+	$(CCTOOLS_CC) -c -o $@ $(CCTOOLS_INTERNAL_CCFLAGS) $(CCTOOLS_CVMFS_CCFLAGS) $<
+
+chirp_cvmfs_cache: chirp_cvmfs_cache.o libchirp.a
+	$(CCTOOLS_LD) -o $@ $^ $(CCTOOLS_CVMFS_CACHE_LDFLAGS) $(CCTOOLS_EXTERNAL_LINKAGE)
 
 bindings: $(CCTOOLS_SWIG_BINDINGS)
 $(CCTOOLS_SWIG_BINDINGS): chirp_swig_wrap.o
