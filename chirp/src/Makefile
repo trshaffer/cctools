@@ -58,7 +58,7 @@ chirp_cvmfs_cache.o: chirp_cvmfs_cache.c
 	$(CCTOOLS_CC) -c -o $@ $(CCTOOLS_INTERNAL_CCFLAGS) $(CCTOOLS_CVMFS_CCFLAGS) $<
 
 chirp_cvmfs_cache: chirp_cvmfs_cache.o libchirp.a
-	$(CCTOOLS_LD) -o $@ $^ $(CCTOOLS_CVMFS_CACHE_LDFLAGS) $(CCTOOLS_EXTERNAL_LINKAGE)
+	$(CCTOOLS_LD) -o $@ $^ $(CCTOOLS_CVMFS_CACHE_LDFLAGS) $(CCTOOLS_CVMFS_LDFLAGS) $(CCTOOLS_EXTERNAL_LINKAGE)
 
 bindings: $(CCTOOLS_SWIG_BINDINGS)
 $(CCTOOLS_SWIG_BINDINGS): chirp_swig_wrap.o
