@@ -16,146 +16,363 @@ See the file COPYING for details.
 #include <uuid/uuid.h>
 #include <cache_plugin/libcvmfs_cache.h>
 
+#include "auth_all.h"
 #include "chirp_reli.h"
 
-#define GETBUFFER(path, buf) do { \
-	if (chirp_reli_getfile_buffer(chirp_host, path, buf, stoptime()) < 0) { \
-		fprintf(stderr, "chirp_cvmfs_cache: failed to get %s on %s: %s\n", \
-			path, chirp_host, strerror(errno)); \
-		return CVMCACHE_STATUS_IOERR; \
+#define BASEDIR "/"
+
+#define ENTRY BASEDIR "%s/"
+#define TXN_PREFIX "txn/"
+#define TXN BASEDIR TXN_PREFIX "%s.%" PRIu64 "/"
+
+#define DATA "data"
+#define ID "id"
+#define REFCOUNT "refcount/%s"
+#define TYPE "type"
+#define PINNED "pinned"
+#define DESC "description"
+
+
+#define CHECK(expr) do { \
+	int64_t _rc = expr; \
+	switch (_rc) { \
+		case -ENOENT: return CVMCACHE_STATUS_NOENTRY; \
+		case -ENOSPC: return CVMCACHE_STATUS_NOSPACE; \
+		case -EPERM: return CVMCACHE_STATUS_FORBIDDEN; \
+		case -EINVAL: return CVMCACHE_STATUS_OUTOFBOUNDS; \
 	} \
+	if (_rc < 0) return CVMCACHE_STATUS_IOERR; \
 } while (0)
 
-#define GETBUFFER_OPT(path, buf) do { \
-	if (chirp_reli_getfile_buffer(chirp_host, path, buf, stoptime()) < 0) { \
-		if (errno == ENOENT) { \
-			*(buf) = NULL; \
-		} else { \
-			fprintf(stderr, "chirp_cvmfs_cache: failed to get %s on %s: %s\n", \
-				path, chirp_host, strerror(errno)); \
-			return CVMCACHE_STATUS_IOERR; \
-		} \
-	} \
-} while (0)
 
-#define PUTBUFFER(path, buf) do { \
-	if (chirp_reli_putfile_buffer(chirp_host, path, buf, 0644, strlen(buf), stoptime()) < 0) { \
-		fprintf(stderr, "chirp_cvmfs_cache: failed to write %s on %s: %s\n", \
-			path, chirp_host, strerror(errno)); \
-		return CVMCACHE_STATUS_IOERR; \
-	} \
-} while (0)
-
-#define CHECK_EXISTS(path) do { \
-	struct chirp_stat cs; \
-	if (chirp_reli_stat(chirp_host, path, &cs, stoptime()) < 0) { \
-		return errno == ENOENT ? CVMCACHE_STATUS_NOENTRY : CVMCACHE_STATUS_IOERR; \
-	} \
-} while (0)
-
-#define MAKE_DIR(path) do { \
-	if (chirp_reli_mkdir(chirp_host, path, 0755, stoptime()) < 0) { \
-		fprintf(stderr, "chirp_cvmfs_cache: failed to make new directory %s on %s: %s\n", \
-			path, chirp_host, strerror(errno)); \
-		return CVMCACHE_STATUS_IOERR; \
-	} \
-} while (0)
-
-#define ENSURE_DIR(path) do { \
-	if (chirp_reli_mkdir(chirp_host, path, 0755, stoptime()) < 0 && errno != EEXIST) { \
-		fprintf(stderr, "chirp_cvmfs_cache: failed to make directory %s on %s: %s\n", \
-			path, chirp_host, strerror(errno)); \
-		return CVMCACHE_STATUS_IOERR; \
-	} \
-} while (0)
-
-#define OPEN_FILE(f, path, flags, mode) do { \
-	*f = chirp_reli_open(chirp_host, path, flags, mode, stoptime()); \
-	if (!*f) { \
-		fprintf(stderr, "chirp_cvmfs_cache: failed to open %s on %s: %s\n", \
-			path, chirp_host, strerror(errno)); \
-		return CVMCACHE_STATUS_IOERR; \
-	} \
-} while (0)
-
-#define FSTAT_FILE(f, cs) do { \
-	if (chirp_reli_fstat(f, cs, stoptime()) < 0) { \
-		fprintf(stderr, "chirp_cvmfs_cache: failed fstat %s on %s: %s\n", \
-			chirp_host, strerror(errno)); \
-		return CVMCACHE_STATUS_IOERR; \
-	} \
-} while ()
-
-#define PREAD_FILE(f, buffer, nbytes, offset) do { \
-	*nbytes = chirp_reli_pread(f, buffer, *nbytes, offset, stoptime()); \
-	if (*nbytes < 0) { \
-		fprintf(stderr, "chirp_cvmfs_host: failed to pread %s on %s: %s\n", \
-			path, chirp_host, strerror(errno)); \
-		return CVMCACHE_STATUS_IOERR; \
-	} \
-} while (0)
-
-#define CLOSE_FILE(f) do { \
-	if (chirp_reli_close(f, stoptime()) < 0) { \
-		fprintf(stderr, "chirp_cvmfs_cache: failed close on %s: %s\n", \
-			chirp_host, strerror(errno)); \
-			return CVMCACHE_STATUS_IOERR; \
-	} \
-} while (0)
-
-char chirp_host[4096] = "localhost";
-char session_id[64];
+static const char *_slop = "";
+static const char *progname = "chirp_cvmfs_cache";
+static const char *chirp_host = "localhost:9999";
+static char session_id[64];
 
 
-struct pretty_hash {
-	char str[2 * sizeof(struct cvmcache_hash) + 2];
+struct chirpcache_hash {
+	char str[2 * sizeof(struct cvmcache_hash) + 16];
+};
+
+struct chirpcache_buffer {
+	char *data;
+	size_t length;
 };
 
 
-static void hash_prettify(const struct cvmcache_hash *id, struct pretty_hash *out) {
+static void chirpcache_format_hash(const struct cvmcache_hash *id, struct chirpcache_hash *out) {
 	assert(id);
 	assert(out);
-	sprintf(out->str, "%X.", id->algorithm);
-	for (size_t i = 0; i < sizeof(id->digest); i++) {
-		sprintf(&out->str[i + 3], "%x", id->digest[i]);
+	size_t i;
+	for (i = 0; i < sizeof(id->digest); i++) {
+		sprintf(&out->str[2*i], "%02x", id->digest[i]);
+	}
+	sprintf(&out->str[2*i], ".%X", id->algorithm);
+}
+
+
+static void chirpcache_buffer_init(struct chirpcache_buffer *buf) {
+	assert(buf);
+	memset(buf, 0, sizeof(*buf));
+	buf->data = (char *) _slop;
+}
+
+
+static void chirpcache_buffer_free(struct chirpcache_buffer *buf) {
+	assert(buf);
+	if (buf->data != _slop) free(buf->data);
+	buf->data = (char *) _slop;
+	buf->length = 0;
+}
+
+
+static void chirpcache_buffer2cstr(struct chirpcache_buffer *buf) {
+	assert(buf);
+	if (buf->data == _slop) return;
+	if (buf->length == 0) {
+		free(buf->data);
+		buf->data = (char *) _slop;
+		return;
+	}
+
+	for (size_t i = 0; i < buf->length; i++) {
+		if (buf->data[i] == 0) return;
+	}
+
+	void *grown = realloc(buf->data, buf->length + 1);
+	if (grown) {
+		buf->data[buf->length] = 0;
+	} else {
+		chirpcache_buffer_free(buf);
 	}
 }
 
 
-static time_t stoptime() {
-	return time(NULL) + 5;
+static void chirpcache_cstr2buffer(struct chirpcache_buffer *buf, const char *str) {
+	assert(buf);
+	assert(str);
+	buf->data = strdup(str);
+	buf->length = strlen(buf->data);
 }
+
+
+static time_t stoptime() {
+	return time(NULL) + 30;
+}
+
+
+static int64_t chirpcache_getbuffer(const char *path, struct chirpcache_buffer *buf, int ignore_enoent) {
+	assert(path);
+	assert(buf);
+	int64_t rc = chirp_reli_getfile_buffer(chirp_host, path, &buf->data, stoptime());
+	if (rc < 0) {
+		buf->length = 0;
+		if (ignore_enoent && errno == ENOENT) {
+			rc = 0;
+		} else {
+			rc = -errno;
+			fprintf(stderr, "%s: failed to get buffer %s on %s: %s\n",
+				progname, path, chirp_host, strerror(errno));
+		}
+	} else {
+		buf->length = rc;
+	}
+	return rc;
+}
+
+
+static int64_t chirpcache_putbuffer(char *path, const struct chirpcache_buffer *buf, int ignore_enoent) {
+	assert(path);
+	assert(buf);
+	int64_t rc = chirp_reli_putfile_buffer(chirp_host, path, buf->data, 0644, buf->length, stoptime());
+	if (rc < 0) {
+		if (ignore_enoent && errno == ENOENT) {
+			rc = 0;
+		} else {
+			rc = -errno;
+			fprintf(stderr, "%s: failed to put buffer %s on %s: %s\n",
+				progname, path, chirp_host, strerror(errno));
+		}
+	}
+	return rc;
+}
+
+
+
+static int64_t chirpcache_open(struct chirp_file **f, const char *path, int64_t flags, int64_t mode, int ignore_enoent) {
+	int64_t rc = 0;
+	struct chirp_file *out = chirp_reli_open(chirp_host, path, flags, mode, stoptime());
+	if (out) {
+		*f = out;
+	} else {
+		*f = NULL;
+		if (!(ignore_enoent && errno == ENOENT)) {
+			rc = -errno;
+			fprintf(stderr, "%s: failed to open %s on %s: %s\n",
+				progname, path, chirp_host, strerror(errno));
+		}
+	}
+	return rc;
+}
+
+
+static int64_t chirpcache_close(struct chirp_file **f) {
+	assert(f);
+	int64_t rc = chirp_reli_close(*f, stoptime());
+	if (rc < 0) {
+		rc = -errno;
+		fprintf(stderr, "%s: failed to close file at %p: %s\n",
+			progname, *f, strerror(errno));
+	}
+	*f = NULL;
+	return rc;
+}
+
+
+static int64_t chirpcache_pwrite(struct chirp_file **f, const void *buf, int64_t size, int64_t offset) {
+	assert(f);
+	int64_t rc = chirp_reli_pwrite(*f, buf, size, offset, stoptime());
+	if (rc < 0) {
+		rc = -errno;
+		fprintf(stderr, "%s: failed to write (%" PRIi64 ",%" PRIi64 ") from file at %p: %s\n",
+			progname, size, offset, *f, strerror(errno));
+		chirpcache_close(f);
+	} else if (rc != size) {
+		rc = -EIO;
+		fprintf(stderr, "%s: partial write (%" PRIi64 "%" PRIi64 ") to file at %p\n",
+			progname, rc, size, f);
+		chirpcache_close(f);
+	}
+	return rc;
+}
+
+
+static int64_t chirpcache_pread(struct chirp_file **f, void *buf, int64_t *size, int64_t offset) {
+	assert(f);
+	assert(size);
+	int64_t rc = chirp_reli_pread(*f, buf, *size, offset, stoptime());
+	if (rc < 0) {
+		rc = -errno;
+		fprintf(stderr, "%s: failed to read (%" PRIi64 ",%" PRIi64 ") from file at %p: %s\n",
+			progname, *size, offset, *f, strerror(errno));
+		chirpcache_close(f);
+	} else {
+		*size = rc;
+	}
+	return rc;
+}
+
+
+static int64_t chirpcache_fstat(struct chirp_file **f, struct chirp_stat *info) {
+	assert(f);
+	int64_t rc = chirp_reli_fstat(*f, info, stoptime());
+	if (rc < 0) {
+		rc = -errno;
+		fprintf(stderr, "%s: failed to stat file at %p: %s\n",
+			progname, *f, strerror(errno));
+		chirpcache_close(f);
+	}
+	return rc;
+}
+
+
+static int64_t chirpcache_access(const char *path, int64_t mode, int ignore_enoent) {
+	int64_t rc = chirp_reli_access(chirp_host, path, mode, stoptime());
+	if (rc < 0) {
+		if (ignore_enoent && errno == ENOENT) {
+			rc = 0;
+		} else {
+			rc = -errno;
+			fprintf(stderr, "%s: failed to access %s on %s: %s\n",
+				progname, path, chirp_host, strerror(errno));
+		}
+	}
+	return rc;
+}
+
+
+static int64_t chirpcache_mkdir(const char *path, int ignore_eexist) {
+	int64_t rc = chirp_reli_mkdir(chirp_host, path, 0755, stoptime());
+	if (rc < 0) {
+		if (ignore_eexist && errno == EEXIST) {
+			rc = 0;
+		} else {
+			rc = -errno;
+			fprintf(stderr, "%s: failed to mkdir %s on %s: %s\n",
+				progname, path, chirp_host, strerror(errno));
+		}
+	}
+	return rc;
+}
+
+
+static int64_t chirpcache_stat(const char *path, struct chirp_stat *info, int ignore_enoent) {
+	int64_t rc = chirp_reli_stat(chirp_host, path, info, stoptime());
+	if (rc < 0) {
+		if (ignore_enoent && errno == ENOENT) {
+			rc = 0;
+		} else {
+			rc = -errno;
+			fprintf(stderr, "%s: failed to stat %s on %s: %s\n",
+				progname, path, chirp_host, strerror(errno));
+		}
+	}
+	return rc;
+}
+
+
+static int64_t chirpcache_rename(const char *src, const char *dst, int ignore_enoent) {
+	int64_t rc = chirp_reli_rename(chirp_host, src, dst, stoptime());
+	if (rc < 0) {
+		if (ignore_enoent && errno == ENOENT) {
+			rc = 0;
+		} else {
+			rc = -errno;
+			fprintf(stderr, "%s: failed to rename %s->%s on %s: %s\n",
+				progname, src, dst, chirp_host, strerror(errno));
+		}
+	}
+	return rc;
+}
+
+
+static int64_t chirpcache_unlink(const char *path, int ignore_enoent) {
+	int64_t rc = chirp_reli_unlink(chirp_host, path, stoptime());
+	if (rc < 0) {
+		if (ignore_enoent && errno == ENOENT) {
+			rc = 0;
+		} else {
+			rc = -errno;
+			fprintf(stderr, "%s: failed to unlink %s on %s: %s\n",
+				progname, path, chirp_host, strerror(errno));
+		}
+	}
+	return rc;
+}
+
+
+static int64_t chirpcache_rmall(const char *path, int ignore_enoent) {
+	int64_t rc = chirp_reli_rmall(chirp_host, path, stoptime());
+	if (rc < 0) {
+		if (ignore_enoent && errno == ENOENT) {
+			rc = 0;
+		} else {
+			rc = -errno;
+			fprintf(stderr, "%s: failed to rmall %s on %s: %s\n",
+				progname, path, chirp_host, strerror(errno));
+		}
+	}
+	return rc;
+}
+
 
 
 static int chirp_chrefcnt(struct cvmcache_hash *id, int32_t change_by) {
 	assert(id);
 
-	struct pretty_hash hash;
-	hash_prettify(id, &hash);
+	struct chirpcache_hash hash;
+	chirpcache_format_hash(id, &hash);
 
-	char path[PATH_MAX];
-	snprintf(path, sizeof(path), "/%s/", hash.str);
-	CHECK_EXISTS(path);
+	char lockfile[PATH_MAX];
+	snprintf(lockfile, sizeof(lockfile), ENTRY REFCOUNT ".lock", hash.str, session_id);
+	struct chirp_file *f = chirp_reli_open(chirp_host, lockfile, O_WRONLY|O_CREAT|O_EXCL|O_TRUNC, 0644, stoptime());
+	if (!f) {
+		if (errno == ENOENT) {
+			return CVMCACHE_STATUS_NOENTRY;
+		} else {
+			fprintf(stderr, "chirp_cvmfs_cache: failed to open %s on %s: %s\n",
+				lockfile, chirp_host, strerror(errno));
+			return CVMCACHE_STATUS_IOERR;
+		}
+	}
 
 	int rc;
-	char *s;
-	snprintf(path, sizeof(path), "/%s/refcount/%s", hash.str, session_id);
-	GETBUFFER_OPT(path, &s);
-	if (s) {
-		rc = atoi(s);
-		free(s);
-	} else {
-		rc = 0;
-	}
+	struct chirpcache_buffer buf;
+	char path[PATH_MAX];
+	chirpcache_buffer_init(&buf);
+	snprintf(path, sizeof(path), ENTRY REFCOUNT, hash.str, session_id);
+	CHECK(chirpcache_getbuffer(path, &buf, 1));
+	chirpcache_buffer2cstr(&buf);
+	rc = atoi(buf.data);
+	chirpcache_buffer_free(&buf);
 
 	rc += change_by;
 	if (rc < 0) {
+		CHECK(chirpcache_close(&f));
+		CHECK(chirpcache_unlink(lockfile, 0));
 		return CVMCACHE_STATUS_BADCOUNT;
+	} else if (rc == 0) {
+		CHECK(chirpcache_close(&f));
+		CHECK(chirpcache_unlink(path, 1));
+		CHECK(chirpcache_unlink(lockfile, 0));
+	} else {
+		char buf[64];
+		snprintf(buf, sizeof(buf), "%d", rc);
+		CHECK(chirpcache_pwrite(&f, buf, strlen(buf), 0));
+		CHECK(chirpcache_close(&f));
+		CHECK(chirpcache_rename(lockfile, path, 0));
 	}
-
-	char buf[64];
-	snprintf(buf, sizeof(buf), "%d", rc);
-	PUTBUFFER(path, buf);
 
 	return CVMCACHE_STATUS_OK;
 }
@@ -165,25 +382,27 @@ static int chirp_obj_info(struct cvmcache_hash *id, struct cvmcache_object_info 
 	assert(id);
 	assert(info);
 
-	struct pretty_hash hash;
-	hash_prettify(id, &hash);
+	struct chirpcache_hash hash;
+	chirpcache_format_hash(id, &hash);
 
 	char path[PATH_MAX];
-	snprintf(path, sizeof(path), "/%s/", hash.str);
-	CHECK_EXISTS(path);
+	snprintf(path, sizeof(path), ENTRY, hash.str);
+	CHECK(chirpcache_access(path, 0, 0));
 
 	struct cvmcache_object_info out;
 	memcpy(&out.id, id, sizeof(out.id));
 
-	char *s;
-	snprintf(path, sizeof(path), "/%s/size", hash.str);
-	GETBUFFER(path, &s);
-	out.size = atoll(s);
-	free(s);
+	struct chirp_stat cs;
+	snprintf(path, sizeof(path), ENTRY DATA, hash.str);
+	CHECK(chirpcache_stat(path, &cs, 0));
+	out.size = cs.cst_size;
 
-	snprintf(path, sizeof(path), "/%s/type", hash.str);
-	GETBUFFER(path, &s);
-	switch (s[0]) {
+	struct chirpcache_buffer buf;
+	chirpcache_buffer_init(&buf);
+	snprintf(path, sizeof(path), ENTRY TYPE, hash.str);
+	CHECK(chirpcache_getbuffer(path, &buf, 0));
+	chirpcache_buffer2cstr(&buf);
+	switch (buf.data[0]) {
 		case 'r':
 		out.type = CVMCACHE_OBJECT_REGULAR;
 		break;
@@ -194,21 +413,23 @@ static int chirp_obj_info(struct cvmcache_hash *id, struct cvmcache_object_info 
 		out.type = CVMCACHE_OBJECT_VOLATILE;
 		break;
 		default:
-		fprintf(stderr, "chirp_cvmfs_cache: invalid type %s for %s\n",
-			s, hash.str);
-		free(s);
+		fprintf(stderr, "%s: invalid type %s for %s\n",
+			progname, buf.data, hash.str);
+		chirpcache_buffer_free(&buf);
 		return CVMCACHE_STATUS_IOERR;
 	}
-	free(s);
+	chirpcache_buffer_free(&buf);
 
-	snprintf(path, sizeof(path), "/%s/pinned", hash.str);
-	GETBUFFER(path, &s);
-	out.pinned = atoi(s);
-	free(s);
+	snprintf(path, sizeof(path), ENTRY PINNED, hash.str);
+	CHECK(chirpcache_getbuffer(path, &buf, 0));
+	chirpcache_buffer2cstr(&buf);
+	out.pinned = atoi(buf.data);
+	chirpcache_buffer_free(&buf);
 
-	snprintf(path, sizeof(path), "/%s/description", hash.str);
-	GETBUFFER_OPT(path, &s);
-	out.description = s;
+	snprintf(path, sizeof(path), ENTRY DESC, hash.str);
+	CHECK(chirpcache_getbuffer(path, &buf, 1));
+	chirpcache_buffer2cstr(&buf);
+	out.description = buf.data;
 
 	memcpy(info, &out, sizeof(*info));
 	return CVMCACHE_STATUS_OK;
@@ -220,28 +441,28 @@ static int chirp_pread(struct cvmcache_hash *id, uint64_t offset, uint32_t *size
 	assert(size);
 	assert(buffer);
 
-	struct pretty_hash hash;
-	hash_prettify(id, &hash);
+	struct chirpcache_hash hash;
+	chirpcache_format_hash(id, &hash);
 
 	char path[PATH_MAX];
-	snprintf(path, sizeof(path), "/%s/", hash.str);
-	CHECK_EXISTS(path);
+	snprintf(path, sizeof(path), ENTRY, hash.str);
+	CHECK(chirpcache_access(path, 0, 0));
 
-	snprintf(path, sizeof(path), "/%s/data", hash.str);
+	snprintf(path, sizeof(path), ENTRY DATA, hash.str);
 	struct chirp_file *f;
-	OPEN_FILE(&f, path, O_RDONLY, 0);
+	CHECK(chirpcache_open(&f, path, O_RDONLY, 0, 0));
 
 	struct chirp_stat cs;
-	FSTAT_FILE(f, &cs);
+	CHECK(chirpcache_fstat(&f, &cs));
 	if ((int) offset > cs.cst_size) {
 		return CVMCACHE_STATUS_OUTOFBOUNDS;
 	}
 
-	int nbytes = *size < cs.cst_size - offset ? *size : cs.cst_size - offset;
-	PREAD_FILE(f, buffer, &nbytes, offset);
+	int64_t nbytes = *size < cs.cst_size - offset ? *size : cs.cst_size - offset;
+	CHECK(chirpcache_pread(&f, buffer, &nbytes, offset));
 	*size = nbytes;
 
-	CLOSE_FILE(f);
+	CHECK(chirpcache_close(&f));
 
 	return CVMCACHE_STATUS_OK;
 }
@@ -251,43 +472,52 @@ static int chirp_start_txn(struct cvmcache_hash *id, uint64_t txn_id, struct cvm
 	assert(id);
 	assert(info);
 
-	struct pretty_hash hash;
-	hash_prettify(id, &hash);
+	struct chirpcache_hash hash;
+	chirpcache_format_hash(id, &hash);
 
 	char path[PATH_MAX];
-	snprintf(path, sizeof(path), "/txn/%s.%" PRIu64, session_id, txn_id);
-	MAKE_DIR(path);
+	snprintf(path, sizeof(path), TXN, session_id, txn_id);
+	CHECK(chirpcache_mkdir(path, 0));
 
-	snprintf(path, sizeof(path), "/txn/%s.%" PRIu64 "/id", session_id, txn_id);
-	PUTBUFFER(path, hash.str);
+	struct chirpcache_buffer buf;
+	chirpcache_cstr2buffer(&buf, (const char *) &hash.str);
+	snprintf(path, sizeof(path), TXN ID, session_id, txn_id);
+	CHECK(chirpcache_putbuffer(path, &buf, 0));
+	chirpcache_buffer_free(&buf);
 
-	const char *s;
-	snprintf(path, sizeof(path), "/txn/%s.%" PRIu64 "/type", session_id, txn_id);
+	snprintf(path, sizeof(path), TXN DATA, session_id, txn_id);
+	CHECK(chirpcache_putbuffer(path, &buf, 0));
+
+	snprintf(path, sizeof(path), TXN TYPE, session_id, txn_id);
 	switch (info->type) {
 		case CVMCACHE_OBJECT_REGULAR:
-		s = "r";
+		chirpcache_cstr2buffer(&buf, "r");
 		break;
 		case CVMCACHE_OBJECT_CATALOG:
-		s = "c";
+		chirpcache_cstr2buffer(&buf, "c");
 		break;
 		case CVMCACHE_OBJECT_VOLATILE:
-		s = "v";
+		chirpcache_cstr2buffer(&buf, "v");
 		break;
 		default:
 		return CVMCACHE_STATUS_MALFORMED;
 	}
-	PUTBUFFER(path, s);
+	CHECK(chirpcache_putbuffer(path, &buf, 0));
+	chirpcache_buffer_free(&buf);
 
-	snprintf(path, sizeof(path), "/txn/%s.%" PRIu64 "/refcount", session_id, txn_id);
-	MAKE_DIR(path);
+	snprintf(path, sizeof(path), TXN REFCOUNT, session_id, txn_id, "");
+	CHECK(chirpcache_mkdir(path, 0));
 
-	s = "1";
-	snprintf(path, sizeof(path), "/%s/refcount/%s", hash.str, session_id);
-	PUTBUFFER(path, s);
+	chirpcache_cstr2buffer(&buf, "1");
+	snprintf(path, sizeof(path), TXN REFCOUNT, session_id, txn_id, session_id);
+	CHECK(chirpcache_putbuffer(path, &buf, 0));
+	chirpcache_buffer_free(&buf);
 
 	if (info->description) {
-		snprintf(path, sizeof(path), "/txn/%s.%" PRIu64 "/description", session_id, txn_id);
-		PUTBUFFER(path, info->description);
+		snprintf(path, sizeof(path), TXN DESC, session_id, txn_id);
+		chirpcache_cstr2buffer(&buf, info->description);
+		CHECK(chirpcache_putbuffer(path, &buf, 0));
+		chirpcache_buffer_free(&buf);
 	}
 
 	return CVMCACHE_STATUS_OK;
@@ -295,21 +525,91 @@ static int chirp_start_txn(struct cvmcache_hash *id, uint64_t txn_id, struct cvm
 
 
 static int chirp_write_txn(uint64_t txn_id, unsigned char *buffer, uint32_t size) {
+	assert(buffer);
+
+	char path[PATH_MAX];
+	snprintf(path, sizeof(path), TXN DATA, session_id, txn_id);
+
+	struct chirp_file *f;
+	CHECK(chirpcache_open(&f, path, O_RDWR, 0, 0));
+
+	struct chirp_stat cs;
+	CHECK(chirpcache_fstat(&f, &cs));
+	CHECK(chirpcache_pwrite(&f, buffer, size, cs.cst_size));
+	CHECK(chirpcache_close(&f));
+
 	return CVMCACHE_STATUS_OK;
 }
 
 
 static int chirp_commit_txn(uint64_t txn_id) {
+	struct chirpcache_buffer buf;
+	char src[PATH_MAX];
+	chirpcache_buffer_init(&buf);
+	snprintf(src, sizeof(src), TXN ID, session_id, txn_id);
+	CHECK(chirpcache_getbuffer(src, &buf, 0));
+	chirpcache_buffer2cstr(&buf);
+	CHECK(chirpcache_unlink(src, 0));
+
+	char dst[PATH_MAX];
+	snprintf(src, sizeof(src), TXN, session_id, txn_id);
+	snprintf(dst, sizeof(dst), ENTRY, buf.data);
+	chirpcache_buffer_free(&buf);
+
+	if (chirp_reli_rename(chirp_host, src, dst, stoptime()) < 0) {
+		if (errno == EEXIST) {
+			CHECK(chirpcache_rmall(src, 0));
+		} else {
+			fprintf(stderr, "chirp_cvmfs_cache: failed to commit %s->%s on %s: %s\n",
+				src, dst, chirp_host, strerror(errno));
+			return CVMCACHE_STATUS_IOERR;
+		}
+	}
+
 	return CVMCACHE_STATUS_OK;
 }
 
 
 static int chirp_abort_txn(uint64_t txn_id) {
+	char path[PATH_MAX];
+	snprintf(path, sizeof(path), TXN, session_id, txn_id);
+	CHECK(chirpcache_rmall(path, 0));
 	return CVMCACHE_STATUS_OK;
 }
 
 
+static void chirp_info_cb(const char *entry, void *arg) {
+	char path[PATH_MAX];
+	struct chirp_stat info;
+	snprintf(path, sizeof(path), "%s/%s", entry, DATA);
+	if (chirp_reli_stat(chirp_host, path, &info, stoptime()) < 0) return;
+
+	char *s;
+	snprintf(path, sizeof(path), "%s/%s", entry, PINNED);
+	if (chirp_reli_getfile_buffer(chirp_host, path, &s, stoptime()) < 0) return;
+	int pinned = atoi(s);
+	free(s);
+
+	/* might need to look at refcounts, too */
+	struct cvmcache_info *ret = arg;
+	ret->used_bytes += info.cst_size;
+	if (pinned) ret->pinned_bytes += info.cst_size;
+}
+
+
 static int chirp_info(struct cvmcache_info *info) {
+	struct cvmcache_info ret;
+	memset(&ret, 0, sizeof(ret));
+	info->size_bytes = (uint64_t) -1;
+	ret.no_shrink = 1;
+
+	if (chirp_reli_getdir(chirp_host, BASEDIR, chirp_info_cb, &ret, stoptime()) < 0) {
+		fprintf(stderr, "chirp_cvmfs_cache: failed to get cache info on %s: %s\n",
+			chirp_host, strerror(errno));
+		return CVMCACHE_STATUS_IOERR;
+	}
+	memcpy(info, &ret, sizeof(*info));
+
 	return CVMCACHE_STATUS_OK;
 }
 
@@ -320,23 +620,22 @@ static int chirp_shrink(uint64_t shrink_to, uint64_t *used) {
 
 
 static int chirp_listing_begin(uint64_t lst_id, enum cvmcache_object_type type) {
-	return CVMCACHE_STATUS_OK;
+	return CVMCACHE_STATUS_NOSUPPORT;
 }
 
 
 static int chirp_listing_next(int64_t listing_id, struct cvmcache_object_info *item) {
-	return CVMCACHE_STATUS_OK;
+	return CVMCACHE_STATUS_NOSUPPORT;
 }
 
 
 static int chirp_listing_end(int64_t listing_id) {
-	return CVMCACHE_STATUS_OK;
+	return CVMCACHE_STATUS_NOSUPPORT;
 }
 
 
 int main(int argc, char *argv[]) {
 	struct cvmcache_context *ctx;
-
 	uuid_t uu;
 	uuid_generate(uu);
 	uuid_unparse(uu, session_id);
@@ -345,6 +644,7 @@ int main(int argc, char *argv[]) {
 		printf("usage: %s <config-file>\n", argv[0]);
 		return 1;
 	}
+	progname = argv[0];
 
 	cvmcache_init_global();
 
@@ -362,7 +662,8 @@ int main(int argc, char *argv[]) {
 
 	printf("using session id %s\n", session_id);
 
-	ENSURE_DIR("/txn");
+	auth_register_all();
+	CHECK(chirpcache_mkdir(BASEDIR TXN_PREFIX, 1));
 
 	cvmcache_spawn_watchdog(NULL);
 
@@ -380,7 +681,7 @@ int main(int argc, char *argv[]) {
 	callbacks.cvmcache_listing_begin = chirp_listing_begin;
 	callbacks.cvmcache_listing_next = chirp_listing_next;
 	callbacks.cvmcache_listing_end = chirp_listing_end;
-	callbacks.capabilities = CVMCACHE_CAP_REFCOUNT;
+	callbacks.capabilities = CVMCACHE_CAP_REFCOUNT | CVMCACHE_CAP_INFO;
 
 	ctx = cvmcache_init(&callbacks);
 	int retval = cvmcache_listen(ctx, locator);
