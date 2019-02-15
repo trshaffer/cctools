@@ -342,7 +342,7 @@ static int bindfile (sqlite3 *db, chirp_jobid_t id, const char *subject, const c
 				CATCHUNIX(fdin);
 				int fdout = openat(sandboxfd, task_path, O_WRONLY|O_CREAT|O_TRUNC, S_IRWXU);
 				CATCHUNIX(fdout);
-				CATCHUNIX(copy_fd_to_fd(fdin, fdout));
+				CATCHUNIX(copy_fd_to_fd(fdin, fdout, NULL));
 				CATCHUNIX(fchmod(fdout, S_IRWXU));
 				CATCHUNIX(close(fdin));
 				CATCHUNIX(close(fdout));
@@ -361,7 +361,7 @@ static int bindfile (sqlite3 *db, chirp_jobid_t id, const char *subject, const c
 				CATCHUNIX(fdin = openat(sandboxfd, task_path, O_RDONLY, 0));
 				CATCHUNIX(fdout = openat(serv_path_dirfd, serv_path_basename, O_CREAT|O_TRUNC|O_WRONLY|O_NOFOLLOW, S_IRWXU));
 				CATCHUNIX(fchmod(fdout, S_IRWXU));
-				CATCHUNIX(copy_fd_to_fd(fdin, fdout));
+				CATCHUNIX(copy_fd_to_fd(fdin, fdout, NULL));
 				CATCHUNIX(close(fdin));
 				CATCHUNIX(close(fdout));
 			}

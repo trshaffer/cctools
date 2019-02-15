@@ -94,7 +94,7 @@ int mount_check_http(const char *url) {
 int mount_install_local(const char *source, const char *target, const char *cache_path, file_type s_type) {
 	switch(s_type) {
 	case FILE_TYPE_REG:
-		if(copy_file_to_file(source, cache_path) < 0) {
+		if(copy_file_to_file(source, cache_path, NULL) < 0) {
 			debug(D_DEBUG, "copy_file_to_file from %s to %s failed.\n", source, cache_path);
 			return -1;
 		}

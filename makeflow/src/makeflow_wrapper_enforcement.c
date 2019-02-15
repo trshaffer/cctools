@@ -42,7 +42,7 @@ void makeflow_wrapper_enforcer_init(struct makeflow_wrapper *w, char *parrot_pat
 		fatal("could not create local copy of parrot: %s", strerror(errno));
 	} else {
 		fchmod(local_parrot, 0755);
-		if (copy_fd_to_fd(host_parrot, local_parrot) != stat_buf.st_size) {
+		if (copy_fd_to_fd(host_parrot, local_parrot, NULL) != stat_buf.st_size) {
 			fatal("could not copy parrot: %s");
 		}
 	}

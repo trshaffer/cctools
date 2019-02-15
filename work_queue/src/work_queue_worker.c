@@ -715,7 +715,7 @@ static int handle_tasks(struct link *master)
 				/* First we try a cheap rename. It that does not work, we try to copy the file. */
 				if(rename(sandbox_name,f->payload) == -1) {
 					debug(D_WQ, "could not rename output file %s to %s: %s",sandbox_name,f->payload,strerror(errno));
-					if(copy_file_to_file(sandbox_name, f->payload)  == -1) {
+					if(copy_file_to_file(sandbox_name, f->payload, NULL)  == -1) {
 						debug(D_WQ, "could not copy output file %s to %s: %s",sandbox_name,f->payload,strerror(errno));
 					}
 				}
@@ -2432,7 +2432,7 @@ int main(int argc, char *argv[])
 			exit(EXIT_SUCCESS);
 			break;
 		case 'P':
-			if(copy_file_to_buffer(optarg, &password, NULL) < 0) {
+			if(copy_file_to_buffer(optarg, &password, NULL, NULL) < 0) {
 				fprintf(stderr,"work_queue_worker: couldn't load password from %s: %s\n",optarg,strerror(errno));
 				exit(EXIT_FAILURE);
 			}

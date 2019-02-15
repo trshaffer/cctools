@@ -25,7 +25,7 @@ See the file COPYING for details.
 
 #define COPY_BUFFER_SIZE (1<<16)
 
-int64_t copy_fd_to_stream(int fd, FILE *output)
+int64_t copy_fd_to_stream(int fd, FILE *output, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
 
@@ -54,7 +54,7 @@ int64_t copy_fd_to_stream(int fd, FILE *output)
 	return total;
 }
 
-int64_t copy_fd_to_fd(int in, int out)
+int64_t copy_fd_to_fd(int in, int out, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
 
@@ -83,7 +83,7 @@ int64_t copy_fd_to_fd(int in, int out)
 	return total;
 }
 
-int64_t copy_file_to_file(const char *input, const char *output)
+int64_t copy_file_to_file(const char *input, const char *output, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int in = open(input, O_RDONLY);
 	if (in == -1)
@@ -108,7 +108,7 @@ int64_t copy_file_to_file(const char *input, const char *output)
 		return -1;
 	}
 
-	int64_t total = copy_fd_to_fd(in, out);
+	int64_t total = copy_fd_to_fd(in, out, digest);
 
 	close(in);
 	close(out);
@@ -116,7 +116,7 @@ int64_t copy_file_to_file(const char *input, const char *output)
 	return total;
 }
 
-int64_t copy_file_to_buffer(const char *filename, char **buffer, size_t *len)
+int64_t copy_file_to_buffer(const char *filename, char **buffer, size_t *len, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	size_t _len;
 	if (len == NULL)
@@ -150,7 +150,7 @@ int64_t copy_file_to_buffer(const char *filename, char **buffer, size_t *len)
 	return total;
 }
 
-int64_t copy_stream_to_stream(FILE *input, FILE *output)
+int64_t copy_stream_to_stream(FILE *input, FILE *output, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
 
@@ -179,7 +179,7 @@ int64_t copy_stream_to_stream(FILE *input, FILE *output)
 	return total;
 }
 
-int64_t copy_stream_to_buffer(FILE *input, char **buffer, size_t *len)
+int64_t copy_stream_to_buffer(FILE *input, char **buffer, size_t *len, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	size_t _len;
 	if (len == NULL)
@@ -214,7 +214,7 @@ int64_t copy_stream_to_buffer(FILE *input, char **buffer, size_t *len)
 	return total;
 }
 
-int64_t copy_stream_to_fd(FILE *input, int fd)
+int64_t copy_stream_to_fd(FILE *input, int fd, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
 

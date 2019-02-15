@@ -704,7 +704,7 @@ CONFUGA_API int confuga_nodes (confuga *C, const char *nodes)
 	} else if (pattern_match(nodes, "^file:(.*)", &node) >= 0) {
 		file = fopen(node, "r");
 		CATCHUNIX(file ? 0 : -1);
-		CATCHUNIX(copy_stream_to_buffer(file, &node, NULL));
+		CATCHUNIX(copy_stream_to_buffer(file, &node, NULL, NULL));
 	} else CATCH(EINVAL);
 
 	rest = node;

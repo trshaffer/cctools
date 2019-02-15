@@ -136,7 +136,7 @@ int main( int argc, char *argv[] )
 			return 1;
 		}
 
-		if(copy_stream_to_stream(data,target_fp)<0) {
+		if(copy_stream_to_stream(data,target_fp,NULL)<0) {
 			fprintf(stderr,"%s: couldn't copy data: %s\n",argv[0],strerror(errno));
 			return 1;
 		}
@@ -149,7 +149,7 @@ int main( int argc, char *argv[] )
 			return 1;
 		}
 
-		if(copy_stream_to_stream(source_fp,data)<0) {
+		if(copy_stream_to_stream(source_fp,data,NULL)<0) {
 			fprintf(stderr,"%s: couldn't copy data: %s\n",argv[0],strerror(errno));
 			return 1;
 		}
@@ -157,7 +157,7 @@ int main( int argc, char *argv[] )
 		fclose(data);
 		ftp_lite_done(target);
 	} else {
-		if(copy_stream_to_stream(source_fp,target_fp)<0) {
+		if(copy_stream_to_stream(source_fp,target_fp,NULL)<0) {
 			fprintf(stderr,"%s: couldn't copy data: %s\n",argv[0],strerror(errno));
 			return 1;
 		}

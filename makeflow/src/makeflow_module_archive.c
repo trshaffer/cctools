@@ -216,7 +216,7 @@ static int dag_check( void * instance_struct, struct dag *d){
 		// Frees memory
 		free(source_makeflow_file_dir);
 		// If the file was unable to be copied to the new path
-		if (!copy_file_to_file(d->filename, source_makeflow_file_path)){
+		if (!copy_file_to_file(d->filename, source_makeflow_file_path, NULL)){
 			// Prints out debug error
 			debug(D_ERROR|D_MAKEFLOW_HOOK, "Could not archive source makeflow file %s\n", source_makeflow_file_path);
 			free(source_makeflow_file_path);
@@ -504,7 +504,7 @@ static int makeflow_archive_file(struct archive_instance *a, struct batch_file *
 	/* File did not already exist, store in general file area */
 	} else {
 		if(path_is_dir(f->outer_name) != 1){
-			if (!copy_file_to_file(f->outer_name, file_archive_path)){
+			if (!copy_file_to_file(f->outer_name, file_archive_path, NULL)){
 				debug(D_ERROR|D_MAKEFLOW_HOOK, "could not archive output file %s at %s: %d %s\n",
 					f->outer_name, file_archive_path, errno, strerror(errno));
 				rv = 1;
@@ -740,7 +740,7 @@ int makeflow_archive_copy_preserved_files(struct archive_instance *a, struct bat
 		free(directory_name);
 		// Copy output file or directory over to specified location
 		if(path_is_dir(output_file_path) != 1){
-			int success = copy_file_to_file(output_file_path, file_name);
+			int success = copy_file_to_file(output_file_path, file_name, NULL);
 			free(output_file_path);
 			free(file_name);
 			if (!success) {

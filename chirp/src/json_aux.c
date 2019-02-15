@@ -80,7 +80,7 @@ json_value *jsonA_parse_file(const char *path) {
 	size_t size;
 	char *buffer;
 
-	if(copy_file_to_buffer(path, &buffer, &size) < 1)
+	if(copy_file_to_buffer(path, &buffer, &size, NULL) < 1)
 		return NULL;
 
 	json_value *J = json_parse(buffer, size);

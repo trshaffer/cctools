@@ -96,7 +96,7 @@ retry:
 			close(fd);
 			return -saved_errno;
 		}
-		if (copy_fd_to_fd(fd, tmpfd) < 0) {
+		if (copy_fd_to_fd(fd, tmpfd, NULL) < 0) {
 			int saved_errno = errno;
 			close(fd);
 			close(tmpfd);

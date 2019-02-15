@@ -356,20 +356,20 @@ void build_package(struct list *d){
 					sprintf(tmp_dest_path, "%s/__init__.py", dep->output_path);
 				else
 					sprintf(tmp_dest_path, "%s/__main__.py", dep->output_path);
-				copy_file_to_file(dep->original_name, tmp_dest_path);
+				copy_file_to_file(dep->original_name, tmp_dest_path, NULL);
 				break;
 			case MAKEFLOW:
 				sprintf(tmp_from_path, "%s/%s", workspace, dep->final_name);
-				copy_file_to_file(tmp_from_path, dep->output_path);
+				copy_file_to_file(tmp_from_path, dep->output_path, NULL);
 				break;
 			case EXE:
 				sprintf(tmp_from_path, "%s/%s", workspace, path_basename(dep->original_name));
-				copy_file_to_file(tmp_from_path, dep->output_path);
+				copy_file_to_file(tmp_from_path, dep->output_path, NULL);
 				break;
 			case PERL:
 			default:
 				sprintf(tmp_dest_path, "%s/%s", dep->output_path, dep->final_name);
-				copy_file_to_file(dep->original_name, tmp_dest_path);
+				copy_file_to_file(dep->original_name, tmp_dest_path, NULL);
 				break;
 		}
 	}

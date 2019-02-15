@@ -1431,7 +1431,7 @@ void resource_monitor_append_report(struct work_queue *q, struct work_queue_task
 
 		FILE *fs = fopen(summary, "r");
 		if(fs) {
-			copy_stream_to_stream(fs, q->monitor_file);
+			copy_stream_to_stream(fs, q->monitor_file, NULL);
 			fclose(fs);
 		}
 
@@ -5094,7 +5094,7 @@ void work_queue_specify_password( struct work_queue *q, const char *password )
 
 int work_queue_specify_password_file( struct work_queue *q, const char *file )
 {
-	return copy_file_to_buffer(file,&q->password,NULL)>0;
+	return copy_file_to_buffer(file,&q->password,NULL,NULL)>0;
 }
 
 void work_queue_delete(struct work_queue *q)
@@ -5229,7 +5229,7 @@ void work_queue_disable_monitoring(struct work_queue *q) {
 
 		rmsummary_print(final, q->measured_local_resources, /* pprint */ 0, extra);
 
-		copy_fd_to_stream(summs_fd, final);
+		copy_fd_to_stream(summs_fd, final, NULL);
 
 		jx_delete(extra);
 		fclose(final);

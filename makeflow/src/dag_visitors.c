@@ -653,7 +653,7 @@ void dag_to_cyto(struct dag *d, int condense_display, int change_size)
 	fprintf(cytograph, "</graph>\n");
 	fclose(cytograph);
 
-	if(copy_file_to_file(INSTALL_PATH "/share/cctools/makeflow-cytoscape-style.xml", "style.xml") < 0) {
+	if(copy_file_to_file(INSTALL_PATH "/share/cctools/makeflow-cytoscape-style.xml", "style.xml", NULL) < 0) {
 		fprintf(stderr, "Unable to create ./style.xml: %s\n", strerror(errno));
 	}
 

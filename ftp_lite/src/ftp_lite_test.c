@@ -169,7 +169,7 @@ static void do_get( const char *rfile, const char *lfile )
 		return;
 	}
 
-	length = copy_stream_to_stream(data,file);
+	length = copy_stream_to_stream(data,file,NULL);
 	if(length>=0) {
 		printf("got %lld bytes\n",length);
 	} else {
@@ -200,7 +200,7 @@ static void do_put( const char *lfile, const char *rfile )
 		return;
 	}
 
-	length = copy_stream_to_stream(file,data);
+	length = copy_stream_to_stream(file,data,NULL);
 	if(length>=0) {
 		printf("put %lld bytes\n",length);
 	} else {
@@ -224,7 +224,7 @@ static void do_ls( const char *path, const char *y )
 		return;
 	}
 
-	length = copy_stream_to_stream(data,stdout);
+	length = copy_stream_to_stream(data,stdout,NULL);
 	if(length<0) {
 		printf("couldn't read list: %s\n",strerror(errno));
 	}

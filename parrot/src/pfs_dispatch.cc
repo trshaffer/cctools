@@ -3702,7 +3702,7 @@ int pfs_dispatch_prepexe (struct pfs_process *p, char exe[PATH_MAX], const char 
 		CATCHUNIX(exefd = memfdexe(filename, pfs_temp_per_instance_dir));
 	}
 	CATCHUNIX(fchmod(exefd, S_IRWXU));
-	CATCHUNIX(copy_fd_to_fd(phyfd, exefd));
+	CATCHUNIX(copy_fd_to_fd(phyfd, exefd, NULL));
 	rc = elf_set_interp(exefd, ldso_physical_name);
 	if (rc == -1 && errno == EINVAL)
 		goto st;

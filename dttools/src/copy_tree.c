@@ -68,7 +68,7 @@ int copy_direntry(const char *s, const char *t) {
 		if(!create_dir(t, (int)default_dirmode)) return -1;
 		return copy_dir_real(s, t);
 	} else if(S_ISREG(s_stat.st_mode)) {
-		return copy_file_to_file(s, t);
+		return copy_file_to_file(s, t, NULL);
 	} else if(S_ISLNK(s_stat.st_mode)) {
 		return copy_symlink(s, t);
 	} else {

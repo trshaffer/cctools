@@ -12,14 +12,16 @@ See the file COPYING for details.
 #include <stdio.h>
 #include <stdlib.h>
 
-int64_t copy_fd_to_fd(int in, int out);
-int64_t copy_fd_to_stream(int fd, FILE *output);
+#include "sha1.h"
 
-int64_t copy_file_to_file(const char *input, const char *output);
-int64_t copy_file_to_buffer(const char *path, char **buffer, size_t *len);
+int64_t copy_fd_to_fd(int in, int out, unsigned char digest[SHA1_DIGEST_LENGTH]);
+int64_t copy_fd_to_stream(int fd, FILE *output, unsigned char digest[SHA1_DIGEST_LENGTH]);
 
-int64_t copy_stream_to_buffer(FILE *input, char **buffer, size_t *len);
-int64_t copy_stream_to_fd(FILE *input, int fd);
-int64_t copy_stream_to_stream(FILE *input, FILE *output);
+int64_t copy_file_to_file(const char *input, const char *output, unsigned char digest[SHA1_DIGEST_LENGTH]);
+int64_t copy_file_to_buffer(const char *path, char **buffer, size_t *len, unsigned char digest[SHA1_DIGEST_LENGTH]);
+
+int64_t copy_stream_to_buffer(FILE *input, char **buffer, size_t *len, unsigned char digest[SHA1_DIGEST_LENGTH]);
+int64_t copy_stream_to_fd(FILE *input, int fd, unsigned char digest[SHA1_DIGEST_LENGTH]);
+int64_t copy_stream_to_stream(FILE *input, FILE *output, unsigned char digest[SHA1_DIGEST_LENGTH]);
 
 #endif

@@ -463,7 +463,7 @@ int line_process(const char *path, char *caller, int ignore_direntry, int is_dir
 						return -1;
 					}
 				}
-				if(copy_file_to_file(path, new_path) < 0) {
+				if(copy_file_to_file(path, new_path, NULL) < 0) {
 					debug(D_DEBUG, "copy_file_to_file from %s to %s fails.\n", path, new_path);
 					return -1;
 				}
@@ -484,7 +484,7 @@ int line_process(const char *path, char *caller, int ignore_direntry, int is_dir
 						return -1;
 					}
 				}
-				if(copy_file_to_file(path, new_path) < 0) {
+				if(copy_file_to_file(path, new_path, NULL) < 0) {
 					debug(D_DEBUG, "copy_file_to_file from %s to %s fails.\n", path, new_path);
 					return -1;
 				}
@@ -667,7 +667,7 @@ int post_process( ) {
 	} else {
 		snprintf(new_envlist, PATH_MAX, "%s/%s", packagepath, new_env);
 	}
-	if(copy_file_to_file(envlist, new_envlist) == -1) {
+	if(copy_file_to_file(envlist, new_envlist, NULL) == -1) {
 		debug(D_DEBUG, "copy_file_to_file(`%s`) fails.\n", envlist);
 		return -1;
 	}
