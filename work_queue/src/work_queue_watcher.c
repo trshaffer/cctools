@@ -186,7 +186,7 @@ int work_queue_watcher_send_changes( struct work_queue_watcher *w, struct link *
 
 				lseek(fd,offset,SEEK_SET);
 				link_putfstring(master,"update %"PRId64" %s %"PRId64" %"PRId64"\n",stoptime,e->taskid,e->logical_path,offset,length);
-				int actual = link_stream_from_fd(master,fd,length,stoptime);
+				int actual = link_stream_from_fd(master,fd,length,stoptime,NULL);
 				close(fd);
 				if(actual!=length) return 0;
 				e->size = info.st_size;

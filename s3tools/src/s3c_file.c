@@ -81,7 +81,7 @@ int s3_put_file(const char* localname, char* remotename, char* bucketname, enum 
 	link_readline(server, response, HEADER_LINE_MAX, stoptime);
 
 	infile = fopen(localname, "r");
-	link_stream_from_file(server, infile, mesg.content_length, stoptime);
+	link_stream_from_file(server, infile, mesg.content_length, stoptime, NULL);
 	fclose(infile);
 
 	link_readline(server, response, HEADER_LINE_MAX, stoptime);
@@ -176,7 +176,7 @@ int s3_get_file(const char* localname, struct s3_dirent_object *dirent, char* re
 		link_close(server);
 		return -1;
 	}
-	link_stream_to_file(server, outfile, length, stoptime);
+	link_stream_to_file(server, outfile, length, stoptime, NULL);
 	fclose(outfile);
 
 	link_close(server);

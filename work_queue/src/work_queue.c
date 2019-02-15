@@ -1042,7 +1042,7 @@ static work_queue_result_code_t get_file( struct work_queue *q, struct work_queu
 	}
 
 	// Write the data on the link to file.
-	int64_t actual = link_stream_to_fd(w->link, fd, length, stoptime);
+	int64_t actual = link_stream_to_fd(w->link, fd, length, stoptime, NULL);
 
 	close(fd);
 
@@ -1753,7 +1753,7 @@ static work_queue_result_code_t get_update( struct work_queue *q, struct work_qu
 	}
 
 	lseek(fd,offset,SEEK_SET);
-	link_stream_to_fd(w->link,fd,length,stoptime);
+	link_stream_to_fd(w->link,fd,length,stoptime,NULL);
 	ftruncate(fd,offset+length);
 	close(fd);
 
@@ -2793,7 +2793,7 @@ static int send_file( struct work_queue *q, struct work_queue_worker *w, struct 
 
 	stoptime = time(0) + get_transfer_wait_time(q, w, t, length);
 	send_worker_msg(q,w, "put %s %"PRId64" 0%o %d\n",remotename, length, local_info.st_mode, flags);
-	actual = link_stream_from_fd(w->link, fd, length, stoptime);
+	actual = link_stream_from_fd(w->link, fd, length, stoptime, NULL);
 	close(fd);
 
 	*total_bytes += actual;

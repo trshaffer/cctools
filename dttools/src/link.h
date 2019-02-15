@@ -35,7 +35,7 @@ if(!link) fatal("could not connect");
 result = link_write(link,request,strlen(request),stoptime);
 if(result<0) fatal("could not send request");
 
-link_stream_to_file(link,stdout,1000000,stoptime);
+link_stream_to_file(link,stdout,1000000,stoptime,NULL);
 link_close(link);
 </pre>
 
@@ -49,6 +49,8 @@ link_close(link);
 #include <stdint.h>
 #include <stdio.h>
 #include <time.h>
+
+#include "sha1.h"
 
 /** Maximum number of characters in the text representation of a link address, whether ipv4 or ipv6. */
 #define LINK_ADDRESS_MAX 48
@@ -299,13 +301,13 @@ int link_address_local(struct link *link, char *addr, int *port);
 */
 int link_address_remote(struct link *link, char *addr, int *port);
 
-ssize_t link_stream_to_buffer(struct link *link, char **buffer, time_t stoptime);
+ssize_t link_stream_to_buffer(struct link *link, char **buffer, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH]);
 
-int64_t link_stream_to_fd(struct link *link, int fd, int64_t length, time_t stoptime);
-int64_t link_stream_to_file(struct link *link, FILE * file, int64_t length, time_t stoptime);
+int64_t link_stream_to_fd(struct link *link, int fd, int64_t length, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH]);
+int64_t link_stream_to_file(struct link *link, FILE * file, int64_t length, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH]);
 
-int64_t link_stream_from_fd(struct link *link, int fd, int64_t length, time_t stoptime);
-int64_t link_stream_from_file(struct link *link, FILE * file, int64_t length, time_t stoptime);
+int64_t link_stream_from_fd(struct link *link, int fd, int64_t length, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH]);
+int64_t link_stream_from_file(struct link *link, FILE * file, int64_t length, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH]);
 
 int64_t link_soak(struct link *link, int64_t length, time_t stoptime);
 

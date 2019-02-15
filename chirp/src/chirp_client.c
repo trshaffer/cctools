@@ -1073,7 +1073,7 @@ INT64_T chirp_client_getfile(struct chirp_client * c, const char *path, FILE * s
 	length = simple_command(c, stoptime, "getfile %s\n", safepath);
 
 	if(length >= 0) {
-		if(link_stream_to_file(c->link, stream, length, stoptime) == length) {
+		if(link_stream_to_file(c->link, stream, length, stoptime, NULL) == length) {
 			return length;
 		} else {
 			c->broken = 1;
@@ -1279,7 +1279,7 @@ INT64_T chirp_client_putfile(struct chirp_client * c, const char *path, FILE * s
 	if(result < 0)
 		return result;
 
-	result = link_stream_from_file(c->link, stream, length, stoptime);
+	result = link_stream_from_file(c->link, stream, length, stoptime, NULL);
 	if(result != length) {
 		c->broken = 1;
 		errno = ECONNRESET;

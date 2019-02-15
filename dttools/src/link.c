@@ -895,7 +895,7 @@ int link_address_remote(struct link *link, char *addr, int *port)
 	}
 }
 
-ssize_t link_stream_to_buffer(struct link * link, char **buffer, time_t stoptime)
+ssize_t link_stream_to_buffer(struct link * link, char **buffer, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	ssize_t total = 0;
 	buffer_t B;
@@ -920,7 +920,7 @@ ssize_t link_stream_to_buffer(struct link * link, char **buffer, time_t stoptime
 	return total;
 }
 
-int64_t link_stream_to_fd(struct link * link, int fd, int64_t length, time_t stoptime)
+int64_t link_stream_to_fd(struct link * link, int fd, int64_t length, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
 
@@ -945,7 +945,7 @@ int64_t link_stream_to_fd(struct link * link, int fd, int64_t length, time_t sto
 	return total;
 }
 
-int64_t link_stream_to_file(struct link * link, FILE * file, int64_t length, time_t stoptime)
+int64_t link_stream_to_file(struct link * link, FILE * file, int64_t length, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
 
@@ -970,7 +970,7 @@ int64_t link_stream_to_file(struct link * link, FILE * file, int64_t length, tim
 	return total;
 }
 
-int64_t link_stream_from_fd(struct link * link, int fd, int64_t length, time_t stoptime)
+int64_t link_stream_from_fd(struct link * link, int fd, int64_t length, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
 
@@ -995,7 +995,7 @@ int64_t link_stream_from_fd(struct link * link, int fd, int64_t length, time_t s
 	return total;
 }
 
-int64_t link_stream_from_file(struct link * link, FILE * file, int64_t length, time_t stoptime)
+int64_t link_stream_from_file(struct link * link, FILE * file, int64_t length, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
 

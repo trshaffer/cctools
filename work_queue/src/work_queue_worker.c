@@ -574,7 +574,7 @@ static void report_task_complete( struct link *master, struct work_queue_process
 		output_length = st.st_size;
 		lseek(p->output_fd, 0, SEEK_SET);
 		send_master_message(master, "result %d %d %lld %llu %d\n", p->task_status, p->exit_status, (long long) output_length, (unsigned long long) p->execution_end-p->execution_start, p->task->taskid);
-		link_stream_from_fd(master, p->output_fd, output_length, time(0)+active_timeout);
+		link_stream_from_fd(master, p->output_fd, output_length, time(0)+active_timeout, NULL);
 
 		total_task_execution_time += (p->execution_end - p->execution_start);
 		total_tasks_executed++;
@@ -804,7 +804,7 @@ static int stream_output_item(struct link *master, const char *filename, int rec
 		if(fd >= 0) {
 			length = info.st_size;
 			send_master_message(master, "file %s %"PRId64"\n", filename, length);
-			actual = link_stream_from_fd(master, fd, length, time(0) + active_timeout);
+			actual = link_stream_from_fd(master, fd, length, time(0) + active_timeout, NULL);
 			close(fd);
 			if(actual != length) {
 				debug(D_WQ, "Sending back output file - %s failed: bytes to send = %"PRId64" and bytes actually sent = %"PRId64".", filename, length, actual);
@@ -1036,7 +1036,7 @@ static int do_put( struct link *master, char *filename, int64_t length, int mode
 		return 0;
 	}
 
-	int64_t actual = link_stream_to_fd(master, fd, length, time(0) + active_timeout);
+	int64_t actual = link_stream_to_fd(master, fd, length, time(0) + active_timeout, NULL);
 	close(fd);
 	if(actual != length) {
 		debug(D_WQ, "Failed to put file - %s (%s)\n", filename, strerror(errno));

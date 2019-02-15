@@ -236,7 +236,7 @@ INT64_T http_fetch_to_file(const char *url, const char *filename, time_t stoptim
 	if(file) {
 		link = http_query_size(url, "GET", &size, stoptime, 1);
 		if(link) {
-			actual = link_stream_to_file(link, file, size, stoptime);
+			actual = link_stream_to_file(link, file, size, stoptime, NULL);
 			link_close(link);
 			fclose(file);
 			if(actual == size) {
