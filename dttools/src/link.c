@@ -900,6 +900,8 @@ ssize_t link_stream_to_buffer(struct link * link, char **buffer, time_t stoptime
 	ssize_t total = 0;
 	buffer_t B;
 	buffer_init(&B);
+	sha1_context_t ctx;
+	sha1_init(&ctx);
 
 	while(1) {
 		char buf[1<<16];
@@ -910,6 +912,7 @@ ssize_t link_stream_to_buffer(struct link * link, char **buffer, time_t stoptime
 			buffer_free(&B);
 			return -1;
 		}
+		if (digest) sha1_update(&ctx, buf, actual);
 		total += actual;
 	}
 
@@ -917,12 +920,15 @@ ssize_t link_stream_to_buffer(struct link * link, char **buffer, time_t stoptime
 		total = -1;
 	buffer_free(&B);
 
+	if (digest) sha1_final(digest, &ctx);
 	return total;
 }
 
 int64_t link_stream_to_fd(struct link * link, int fd, int64_t length, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
+	sha1_context_t ctx;
+	sha1_init(&ctx);
 
 	while(length > 0) {
 		char buffer[1<<16];
@@ -931,6 +937,8 @@ int64_t link_stream_to_fd(struct link * link, int fd, int64_t length, time_t sto
 		ssize_t ractual = link_read(link, buffer, chunk, stoptime);
 		if(ractual <= 0)
 			break;
+
+		if (digest) sha1_update(&ctx, buffer, ractual);
 
 		ssize_t wactual = full_write(fd, buffer, ractual);
 		if(wactual != ractual) {
@@ -942,12 +950,15 @@ int64_t link_stream_to_fd(struct link * link, int fd, int64_t length, time_t sto
 		length -= ractual;
 	}
 
+	if (digest) sha1_final(digest, &ctx);
 	return total;
 }
 
 int64_t link_stream_to_file(struct link * link, FILE * file, int64_t length, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
+	sha1_context_t ctx;
+	sha1_init(&ctx);
 
 	while(length > 0) {
 		char buffer[1<<16];
@@ -956,6 +967,8 @@ int64_t link_stream_to_file(struct link * link, FILE * file, int64_t length, tim
 		ssize_t ractual = link_read(link, buffer, chunk, stoptime);
 		if(ractual <= 0)
 			break;
+
+		if (digest) sha1_update(&ctx, buffer, ractual);
 
 		ssize_t wactual = full_fwrite(file, buffer, ractual);
 		if(wactual != ractual) {
@@ -967,12 +980,15 @@ int64_t link_stream_to_file(struct link * link, FILE * file, int64_t length, tim
 		length -= ractual;
 	}
 
+	if (digest) sha1_final(digest, &ctx);
 	return total;
 }
 
 int64_t link_stream_from_fd(struct link * link, int fd, int64_t length, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
+	sha1_context_t ctx;
+	sha1_init(&ctx);
 
 	while(length > 0) {
 		char buffer[1<<16];
@@ -982,6 +998,8 @@ int64_t link_stream_from_fd(struct link * link, int fd, int64_t length, time_t s
 		if(ractual <= 0)
 			break;
 
+		if (digest) sha1_update(&ctx, buffer, ractual);
+
 		ssize_t wactual = link_write(link, buffer, ractual, stoptime);
 		if(wactual != ractual) {
 			total = -1;
@@ -992,12 +1010,15 @@ int64_t link_stream_from_fd(struct link * link, int fd, int64_t length, time_t s
 		length -= ractual;
 	}
 
+	if (digest) sha1_final(digest, &ctx);
 	return total;
 }
 
 int64_t link_stream_from_file(struct link * link, FILE * file, int64_t length, time_t stoptime, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
+	sha1_context_t ctx;
+	sha1_init(&ctx);
 
 	while(1) {
 		char buffer[1<<16];
@@ -1007,6 +1028,8 @@ int64_t link_stream_from_file(struct link * link, FILE * file, int64_t length, t
 		if(ractual <= 0)
 			break;
 
+		if (digest) sha1_update(&ctx, buffer, ractual);
+
 		ssize_t wactual = link_write(link, buffer, ractual, stoptime);
 		if(wactual != ractual) {
 			total = -1;
@@ -1017,6 +1040,7 @@ int64_t link_stream_from_file(struct link * link, FILE * file, int64_t length, t
 		length -= ractual;
 	}
 
+	if (digest) sha1_final(digest, &ctx);
 	return total;
 }
 
