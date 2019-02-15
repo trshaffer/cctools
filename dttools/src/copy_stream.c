@@ -28,6 +28,8 @@ See the file COPYING for details.
 int64_t copy_fd_to_stream(int fd, FILE *output, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
+	sha1_context_t ctx;
+	sha1_init(&ctx);
 
 	while(1) {
 		char buffer[COPY_BUFFER_SIZE];
@@ -40,6 +42,8 @@ int64_t copy_fd_to_stream(int fd, FILE *output, unsigned char digest[SHA1_DIGEST
 				break;
 		}
 
+		if (digest) sha1_update(&ctx, buffer, actual_read);
+
 		int64_t actual_write = full_fwrite(output, buffer, actual_read);
 		if(actual_write == -1) {
 			if(total == 0)
@@ -51,12 +55,15 @@ int64_t copy_fd_to_stream(int fd, FILE *output, unsigned char digest[SHA1_DIGEST
 		total += actual_write;
 	}
 
+	if (digest) sha1_final(digest, &ctx);
 	return total;
 }
 
 int64_t copy_fd_to_fd(int in, int out, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
+	sha1_context_t ctx;
+	sha1_init(&ctx);
 
 	while(1) {
 		char buffer[COPY_BUFFER_SIZE];
@@ -69,6 +76,8 @@ int64_t copy_fd_to_fd(int in, int out, unsigned char digest[SHA1_DIGEST_LENGTH])
 				break;
 		}
 
+		if (digest) sha1_update(&ctx, buffer, actual_read);
+
 		int64_t actual_write = full_write(out, buffer, actual_read);
 		if(actual_write == -1) {
 			if (total == 0)
@@ -80,6 +89,7 @@ int64_t copy_fd_to_fd(int in, int out, unsigned char digest[SHA1_DIGEST_LENGTH])
 		total += actual_write;
 	}
 
+	if (digest) sha1_final(digest, &ctx);
 	return total;
 }
 
@@ -118,6 +128,9 @@ int64_t copy_file_to_file(const char *input, const char *output, unsigned char d
 
 int64_t copy_file_to_buffer(const char *filename, char **buffer, size_t *len, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
+	sha1_context_t ctx;
+	sha1_init(&ctx);
+
 	size_t _len;
 	if (len == NULL)
 		len = &_len;
@@ -147,12 +160,19 @@ int64_t copy_file_to_buffer(const char *filename, char **buffer, size_t *len, un
 
 	close(fd);
 
+	if (digest) {
+		sha1_update(&ctx, buffer, total);
+		sha1_final(digest, &ctx);
+	}
 	return total;
 }
 
 int64_t copy_stream_to_stream(FILE *input, FILE *output, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
+
+	sha1_context_t ctx;
+	sha1_init(&ctx);
 
 	while(1) {
 		char buffer[COPY_BUFFER_SIZE];
@@ -165,6 +185,8 @@ int64_t copy_stream_to_stream(FILE *input, FILE *output, unsigned char digest[SH
 				break;
 		}
 
+		if (digest) sha1_update(&ctx, buffer, actual_read);
+
 		int64_t actual_write = full_fwrite(output, buffer, actual_read);
 		if(actual_write == -1) {
 			if (total == 0)
@@ -176,11 +198,15 @@ int64_t copy_stream_to_stream(FILE *input, FILE *output, unsigned char digest[SH
 		total += actual_write;
 	}
 
+	if (digest) sha1_final(digest, &ctx);
 	return total;
 }
 
 int64_t copy_stream_to_buffer(FILE *input, char **buffer, size_t *len, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
+	sha1_context_t ctx;
+	sha1_init(&ctx);
+
 	size_t _len;
 	if (len == NULL)
 		len = &_len;
@@ -200,6 +226,8 @@ int64_t copy_stream_to_buffer(FILE *input, char **buffer, size_t *len, unsigned 
 				break;
 		}
 
+		if (digest) sha1_update(&ctx, buffer, actual_read);
+
 		if (buffer_putlstring(&B, buffer, actual_read) == -1) {
 			buffer_free(&B);
 			return -1;
@@ -211,12 +239,16 @@ int64_t copy_stream_to_buffer(FILE *input, char **buffer, size_t *len, unsigned 
 	buffer_dupl(&B, buffer, len);
 	buffer_free(&B);
 
+	if (digest) sha1_final(digest, &ctx);
 	return total;
 }
 
 int64_t copy_stream_to_fd(FILE *input, int fd, unsigned char digest[SHA1_DIGEST_LENGTH])
 {
 	int64_t total = 0;
+
+	sha1_context_t ctx;
+	sha1_init(&ctx);
 
 	while(1) {
 		char buffer[COPY_BUFFER_SIZE];
@@ -229,6 +261,8 @@ int64_t copy_stream_to_fd(FILE *input, int fd, unsigned char digest[SHA1_DIGEST_
 				break;
 		}
 
+		if (digest) sha1_update(&ctx, buffer, actual_read);
+
 		int64_t actual_write = full_write(fd, buffer, actual_read);
 		if(actual_write == -1) {
 			if (total == 0)
@@ -240,6 +274,7 @@ int64_t copy_stream_to_fd(FILE *input, int fd, unsigned char digest[SHA1_DIGEST_
 		total += actual_write;
 	}
 
+	if (digest) sha1_final(digest, &ctx);
 	return total;
 }
 
