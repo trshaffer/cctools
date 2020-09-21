@@ -259,7 +259,8 @@ printf("%i\n", __LINE__);
 				ssize_t rc = read(snd->pipefd,
 					(char *) buffer_tostring(snd->buffer) + snd->buf_pos,
 					snd->len - snd->buf_pos);
-printf("->%zi", rc);
+printf("->%zi\n", rc);
+printf("%s\n", strerror(errno));
 				if (rc == -1 && errno_is_temporary(errno)) {
 					return 0;
 				} else if (rc == 0) {
