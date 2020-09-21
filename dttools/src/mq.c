@@ -7,6 +7,7 @@ See the file COPYING for details.
 #include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -249,6 +250,7 @@ static int flush_send(struct mq *mq) {
 
 		if (snd->buffering) {
 			if (snd->hung_up) {
+printf("%i\n", __LINE__);
 				snd->len = snd->buf_pos;
 				snd->type |= HDR_MSG_END;
 			}
@@ -257,9 +259,11 @@ static int flush_send(struct mq *mq) {
 				ssize_t rc = read(snd->pipefd,
 					(char *) buffer_tostring(snd->buffer) + snd->buf_pos,
 					snd->len - snd->buf_pos);
+printf("->%zi", rc);
 				if (rc == -1 && errno_is_temporary(errno)) {
 					return 0;
 				} else if (rc == 0) {
+printf("%i\n", __LINE__);
 					snd->len = snd->buf_pos;
 				} else if (rc < 0) {
 					return -1;
@@ -267,6 +271,7 @@ static int flush_send(struct mq *mq) {
 				snd->buf_pos = checked_add(snd->buf_pos, rc);
 				continue;
 			} else {
+printf("%i\n", __LINE__);
 				snd->buffering = false;
 				snd->buf_pos = 0;
 				continue;
@@ -285,9 +290,11 @@ static int flush_send(struct mq *mq) {
 			snd->hdr_len = htonll(framelen);
 			if (framelen < MQ_FRAME_MAX) {
 				snd->type |= HDR_MSG_END;
+printf("%i\n", __LINE__);
 			}
 			if (snd->storage == MQ_MSG_BUFFER && framelen + snd->buf_pos == snd->len) {
 				snd->type |= HDR_MSG_END;
+printf("%i\n", __LINE__);
 			}
 
 			ssize_t rc = send(socket, &snd->magic + snd->hdr_pos,
@@ -318,9 +325,11 @@ static int flush_send(struct mq *mq) {
 			continue;
 		} else {
 			if (snd->type & HDR_MSG_END) {
+printf("%i\n", __LINE__);
 				mq_msg_delete(snd);
 				mq->sending = NULL;
 			} else {
+printf("%i\n", __LINE__);
 				assert(snd->storage == MQ_MSG_FD);
 				snd->buffering = true;
 				snd->buf_pos = 0;
