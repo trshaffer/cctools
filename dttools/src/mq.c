@@ -249,19 +249,13 @@ static int flush_send(struct mq *mq) {
 		if (!snd) return 0;
 
 		if (snd->buffering) {
-			if (snd->hung_up) {
-printf("%i\n", __LINE__);
-				snd->len = snd->buf_pos;
-				snd->type |= HDR_MSG_END;
-			}
-
 			if (snd->buf_pos < snd->len) {
 				ssize_t rc = read(snd->pipefd,
 					(char *) buffer_tostring(snd->buffer) + snd->buf_pos,
 					snd->len - snd->buf_pos);
 printf("->%zi\n", rc);
 printf("%s\n", strerror(errno));
-				if (rc == -1 && errno_is_temporary(errno)) {
+				if (rc == -1 && errno_is_temporary(errno) && !snd->hung_up) {
 					return 0;
 				} else if (rc == 0) {
 printf("%i\n", __LINE__);
