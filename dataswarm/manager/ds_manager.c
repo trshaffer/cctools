@@ -312,16 +312,28 @@ void handle_worker_message( struct ds_manager *m, struct ds_worker_rep *w, time_
 	}
 
 	const char *method = jx_lookup_string(msg,"method");
-	const char *params = jx_lookup_string(msg,"params");
-	if(!method || !params) {
+	struct jx *params = jx_lookup(msg,"params");
+	struct jx *error = jx_lookup(msg,"error");
+	struct jx *result = jx_lookup(msg,"result");
+	jx_int_t id = jx_lookup_integer(msg,"id");
+	if (method && params && id) {
+		debug(D_DATASWARM, "worker %s:%d rpc call: %s (%" PRIi64 ")", w->addr, w->port, method, id);
+		// handle rpc call
+	} else if (method && params) {
+		debug(D_DATASWARM, "worker %s:%d rpc call: %s", w->addr, w->port, method);
+		// handle notification
+	} else if (id && result) {
+		debug(D_DATASWARM, "worker %s:%d rpc result (%" PRIi64 ")", w->addr, w->port, id);
+		// handle rpc ok
+	} else if (id && error) {
+		debug(D_DATASWARM, "worker %s:%d rpc error (%" PRIi64 ")", w->addr, w->port, id);
+		// handle rpc error
+	} else {
 		/* ds_json_send_error_result(l, msg, DS_MSG_MALFORMED_MESSAGE, stoptime); */
 		/* disconnect worker */
 		mq_close(w->connection);
 		return;
 	}
-
-	debug(D_DATASWARM, "worker %s:%d rx: %s", w->addr, w->port, method);
-
 
 	if(!strcmp(method,"task-change")) {
 		/* */
@@ -331,7 +343,7 @@ void handle_worker_message( struct ds_manager *m, struct ds_worker_rep *w, time_
 		/* */
 	} else if(!strcmp(method,"blob-get")) {
 		/* */
-		set_storage = 1;
+		//set_storage = 1;
 	} else {
 		/* ds_json_send_error_result(l, msg, DS_MSG_UNEXPECTED_METHOD, stoptime); */
 	}
@@ -408,7 +420,26 @@ void server_main_loop( struct ds_manager *m )
 		process_files(m);
 		process_tasks(m);
 
-		if (mq_poll_wait(m->polling_group, time(0) + 300) == -1 && errno != EINTR) {
+		// XXX This is a HACK to get some messages going for testing
+		static int phase = 0;
+		char *key;
+		struct ds_worker_rep *r = NULL;
+		hash_table_firstkey(m->worker_table);
+		hash_table_nextkey(m->worker_table, &key, (void **) &r);
+		if (r) {
+			switch (wait_for_rpcs(m, r)) {
+				case 1:
+					dataswarm_test_script(m, r, phase);
+					phase++;
+					// falls through
+				case 0:
+					break;
+				case -1:
+					abort();
+			}
+		}
+
+		if (mq_poll_wait(m->polling_group, time(0) + 10) == -1 && errno != EINTR) {
 				perror("server_main_loop");
 				break;
 		}
